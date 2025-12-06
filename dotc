@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# dot-commander (dc) - Dynamic entrypoint for calling shell executables
+# dot-commander (dotc) - Dynamic entrypoint for calling shell executables
 # This script manages wrapper scripts for executables organized into subfolders
 
 set -euo pipefail
@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 # Logging functions
 log_info() {
     local timestamp=$(date +"%y%m%d%H%M%S")
-    echo "${timestamp} INFO: $*"
+    echo "${timestamp} INFO: $*" >&2
 }
 
 log_error() {
@@ -39,6 +39,52 @@ check_yq() {
         log_error "yq is required but not installed. Please install yq first."
         exit 1
     fi
+}
+
+# Determine namespace from scan directory
+determine_namespace() {
+    local scan_dir="$1"
+    local namespace=""
+    local quiet="${2:-false}"  # Optional quiet mode parameter
+    
+    # Check for .dot-commander.yaml file
+    local config_file="${scan_dir}/.dot-commander.yaml"
+    if [ -f "$config_file" ]; then
+        # Suppress check_yq output - it will exit if yq is not found
+        if ! command -v yq &> /dev/null; then
+            log_error "yq is required but not installed. Please install yq first." >&2
+            echo ""
+            return 1
+        fi
+        namespace=$(yq eval '.namespace // ""' "$config_file" 2>/dev/null || echo "")
+        if [ -n "$namespace" ]; then
+            if [ "$quiet" != "true" ]; then
+                log_info "Found namespace in .dot-commander.yaml: ${namespace}" >&2
+            fi
+            # Only output the namespace value to stdout
+            echo "$namespace"
+            return 0
+        fi
+    fi
+    
+    # Check if scan_dir is a git repository
+    if git -C "$scan_dir" rev-parse --git-dir > /dev/null 2>&1; then
+        local git_root
+        git_root=$(git -C "$scan_dir" rev-parse --show-toplevel 2>/dev/null || echo "")
+        if [ -n "$git_root" ]; then
+            namespace=$(basename "$git_root")
+            if [ "$quiet" != "true" ]; then
+                log_info "Found git repository, using namespace: ${namespace}" >&2
+            fi
+            # Only output the namespace value to stdout
+            echo "$namespace"
+            return 0
+        fi
+    fi
+    
+    # No namespace found
+    echo ""
+    return 0
 }
 
 # Get the shell type (bash or zsh)
@@ -162,7 +208,7 @@ EOF
 # Add initialization block to shell init files
 add_init_block() {
     local init_block="# >>> dot-commander initialize >>>
-# !! Contents within this block are managed by 'dot-commander (dc)' !!
+# !! Contents within this block are managed by 'dot-commander (dotc)' !!
 DC_WORKSPACE_DIR=\${DC_WORKSPACE_DIR-\${HOME}/dot-commander}
 export PATH=\"\${DC_WORKSPACE_DIR}/bin:\$PATH\"
 # <<< dot-commander <<<"
@@ -221,7 +267,7 @@ update_aliases_block() {
         {
             echo ""
             echo "# >>> dot-commander aliases >>>"
-            echo "# !! Contents within this block are managed by 'dot-commander (dc)' !!"
+            echo "# !! Contents within this block are managed by 'dot-commander (dotc)' !!"
             for alias_entry in "${alias_entries[@]}"; do
                 echo "$alias_entry"
             done
@@ -243,6 +289,10 @@ scan_and_create_wrappers() {
     
     log_info "Scanning directory: ${scan_dir}"
     
+    # Determine namespace
+    local DC_NAMESPACE
+    DC_NAMESPACE=$(determine_namespace "$scan_dir")
+    
     # Create bin directory
     mkdir -p "${DC_BIN_DIR}"
     
@@ -262,20 +312,60 @@ scan_and_create_wrappers() {
         
         # Get relative path from scan_dir
         local rel_path="${file#$scan_dir/}"
-        local dir_name=$(dirname "$rel_path")
+        local dir_path=$(dirname "$rel_path")
         local base_name=$(basename "$file")
         local name_without_ext="${base_name%.*}"
         
+        # Build wrapper name components from directory path
+        local path_components=()
+        
         # Handle files in root of scan_dir
-        if [ "$dir_name" = "." ]; then
-            dir_name="root"
+        if [ "$dir_path" = "." ]; then
+            path_components=("root")
         else
-            # Get the parent folder name (last component of dir_name)
-            dir_name=$(basename "$dir_name")
+            # Split directory path into components
+            # Replace / with space, then read into array
+            local normalized_path="${dir_path#./}"  # Remove leading ./
+            normalized_path="${normalized_path%/}"     # Remove trailing /
+            
+            # Use a while loop to split on /
+            local temp_path="$normalized_path"
+            while [ -n "$temp_path" ]; do
+                local component="${temp_path%%/*}"
+                if [ -n "$component" ] && [ "$component" != "." ]; then
+                    path_components+=("$component")
+                fi
+                # Remove the component we just processed
+                if [ "$temp_path" = "$component" ]; then
+                    break
+                fi
+                temp_path="${temp_path#*/}"
+            done
         fi
         
-        # Create wrapper name: parentFolder.baseName
-        local wrapper_name="${dir_name}.${name_without_ext}"
+        # Build wrapper name
+        local wrapper_name=""
+        
+        # Add namespace if present
+        if [ -n "$DC_NAMESPACE" ]; then
+            wrapper_name="$DC_NAMESPACE"
+        fi
+        
+        # Add path components
+        for component in "${path_components[@]}"; do
+            if [ -z "$wrapper_name" ]; then
+                wrapper_name="$component"
+            else
+                wrapper_name="${wrapper_name}.${component}"
+            fi
+        done
+        
+        # Add base name
+        if [ -z "$wrapper_name" ]; then
+            wrapper_name="$name_without_ext"
+        else
+            wrapper_name="${wrapper_name}.${name_without_ext}"
+        fi
         
         # Create wrapper script
         create_wrapper_script "$file" "$wrapper_name"
@@ -285,7 +375,7 @@ scan_and_create_wrappers() {
         echo "    path: \"${file}\"" >> "$temp_index"
         
         # Add to aliases
-        alias_entries+=("alias dc.${wrapper_name}=\"${DC_BIN_DIR}/${wrapper_name}.sh\"")
+        alias_entries+=("alias dotc.${wrapper_name}=\"${DC_BIN_DIR}/${wrapper_name}.sh\"")
         
         file_count=$((file_count + 1))
         log_info "Created wrapper: ${wrapper_name} -> ${file}"
@@ -319,20 +409,20 @@ init_dot_commander() {
     add_init_block
     
     log_info "dot-commander initialized"
-    log_info "Run \`dc ---help\` for usage information"
+    log_info "Run \`dotc ---help\` for usage information"
 }
 
 # Show help message
 show_help() {
     echo "Usage:"
-    echo "  dc ---init: Initialize the script's internal config"
-    echo "  dc ---scan <target_dir>: Initialize and scan the target directory for executables"
-    echo "  dc ---help: Show this help message"
-    echo "  dc <sub_command>: Execute a sub-command"
+    echo "  dotc ---init: Initialize the script's internal config"
+    echo "  dotc ---scan <target_dir>: Initialize and scan the target directory for executables"
+    echo "  dotc ---help: Show this help message"
+    echo "  dotc <sub_command>: Execute a sub-command"
     echo ""
     
     if [ ! -f "$DC_COMMAND_INDEX" ]; then
-        echo "No command index found. Run 'dc ---scan <dir>' to create one."
+        echo "No command index found. Run 'dotc ---scan <dir>' to create one."
         return 0
     fi
     
@@ -341,6 +431,7 @@ show_help() {
     echo "Available Sub Commands:"
     
     # Parse YAML and extract command names
+    # Redirect stderr to avoid log messages appearing in output
     local commands
     commands=$(yq eval '.commands[].name' "$DC_COMMAND_INDEX" 2>/dev/null || echo "")
     
@@ -349,8 +440,9 @@ show_help() {
         return 0
     fi
     
+    # Filter out any lines that look like log messages
     while IFS= read -r cmd; do
-        if [ -n "$cmd" ]; then
+        if [ -n "$cmd" ] && [[ ! "$cmd" =~ ^[0-9]{12}[[:space:]]+INFO: ]]; then
             echo "  - $cmd"
         fi
     done <<< "$commands"
@@ -365,7 +457,7 @@ execute_subcommand() {
     
     if [ ! -f "$wrapper_script" ]; then
         log_error "Subcommand not found: ${subcommand}"
-        log_error "Run 'dc ---help' to see available commands"
+        log_error "Run 'dotc ---help' to see available commands"
         exit 1
     fi
     
@@ -479,7 +571,7 @@ main() {
     fi
     
     # No valid command provided
-    log_error "No valid command provided. Run 'dc ---help' for usage information."
+    log_error "No valid command provided. Run 'dotc ---help' for usage information."
     exit 1
 }
 
