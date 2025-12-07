@@ -5,6 +5,9 @@
 
 set -euo pipefail
 
+# Version
+__version__="0.2.0"
+
 # Configuration
 DC_WORKSPACE_DIR="${DC_WORKSPACE_DIR:-${HOME}/dot-commander}"
 DC_BIN_DIR="${DC_WORKSPACE_DIR}/bin"
@@ -303,9 +306,64 @@ update_aliases_block() {
     done
 }
 
+# Check if a string is a git URL
+is_git_url() {
+    local url="$1"
+    [[ "$url" =~ ^https://.*\.git$ ]] || [[ "$url" =~ ^git@.*:.*\.git$ ]]
+}
+
+# Clone git repository if URL is provided
+clone_git_repo() {
+    local git_url="$1"
+    local owner=""
+    local repo=""
+    local repo_path=""
+    
+    # Parse git URL to extract owner and repo
+    if [[ "$git_url" =~ ^https://github.com/([^/]+)/([^/]+)\.git$ ]]; then
+        owner="${BASH_REMATCH[1]}"
+        repo="${BASH_REMATCH[2]}"
+    elif [[ "$git_url" =~ ^git@github.com:([^/]+)/([^/]+)\.git$ ]]; then
+        owner="${BASH_REMATCH[1]}"
+        repo="${BASH_REMATCH[2]}"
+    else
+        log_error "Unsupported git URL format: ${git_url}"
+        log_error "Supported formats: https://github.com/owner/repo.git or git@github.com:owner/repo.git"
+        exit 1
+    fi
+    
+    # Create owner directory if it doesn't exist
+    local owner_dir="${DC_WORKSPACE_DIR}/git/${owner}"
+    mkdir -p "$owner_dir"
+    
+    # Clone repository
+    repo_path="${owner_dir}/${repo}"
+    
+    if [ -d "$repo_path" ]; then
+        log_info "Repository already exists at ${repo_path}, skipping clone"
+    else
+        log_info "Cloning repository ${git_url} to ${repo_path}"
+        if ! git clone --quiet "$git_url" "$repo_path" 2>/dev/null; then
+            log_error "Failed to clone repository: ${git_url}"
+            exit 1
+        fi
+        log_info "Repository cloned successfully"
+    fi
+    
+    echo "$repo_path"
+}
+
 # Scan directory for executables and create wrappers
 scan_and_create_wrappers() {
-    local scan_dir="$1"
+    local scan_target="$1"
+    local scan_dir=""
+    
+    # Check if scan_target is a git URL
+    if is_git_url "$scan_target"; then
+        scan_dir=$(clone_git_repo "$scan_target")
+    else
+        scan_dir="$scan_target"
+    fi
     
     if [ ! -d "$scan_dir" ]; then
         log_error "Scan directory does not exist: ${scan_dir}"
@@ -314,7 +372,7 @@ scan_and_create_wrappers() {
     
     log_info "Scanning directory: ${scan_dir}"
     
-    # Determine namespace
+    # Determine namespace from the cloned/scan directory
     local DC_NAMESPACE
     DC_NAMESPACE=$(determine_namespace "$scan_dir")
     
@@ -628,13 +686,21 @@ install_completion() {
     fi
 }
 
+# Show version
+show_version() {
+    echo "dotc version $__version__"
+    exit 0
+}
+
 # Show help message
 show_help() {
     echo "Usage:"
     echo "  dotc ---init: Initialize the script's internal config"
     echo "  dotc ---scan <target_dir>: Initialize and scan the target directory for executables"
     echo "  dotc ---help: Show this help message"
+    echo "  dotc ---version: Show version information"
     echo "  dotc ---completion: Generate and install shell completion scripts"
+    echo "  dotc ---update: Check for updates and update dotc and command repos"
     echo "  dotc <sub_command>: Execute a sub-command"
     echo ""
     
@@ -663,6 +729,147 @@ show_help() {
     done <<< "$commands"
 }
 
+# Check for updates to dotc
+check_dotc_updates() {
+    local current_version="$__version__"
+    local dotc_path=$(which dotc 2>/dev/null || echo "")
+    
+    if [ -z "$dotc_path" ]; then
+        log_warn "Could not determine dotc installation path"
+        return 1
+    fi
+    
+    # Check if dotc was installed via installer (in /usr/local/bin or similar)
+    if [[ "$dotc_path" != *"dot-commander"* ]] && [[ "$dotc_path" =~ ^/(usr|opt|usr/local)/bin/ ]]; then
+        # Try to get latest tag from GitHub
+        local repo_url="https://github.com/berttejeda/bert.dot-commander.git"
+        local latest_tag=""
+        
+        if command -v git &> /dev/null; then
+            latest_tag=$(git ls-remote --tags "$repo_url" 2>/dev/null | grep -v '\^{}' | sed 's/.*refs\/tags\///' | sort -V | tail -1 || echo "")
+        fi
+        
+        if [ -n "$latest_tag" ] && [ "$latest_tag" != "v${current_version}" ] && [ "$latest_tag" != "${current_version}" ]; then
+            echo "$latest_tag"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+# Update dotc to latest version
+update_dotc() {
+    local latest_tag="$1"
+    local dotc_path=$(which dotc)
+    local temp_dir=$(mktemp -d)
+    local repo_url="https://github.com/berttejeda/bert.dot-commander.git"
+    
+    log_info "Updating dotc to version ${latest_tag}"
+    
+    # Clone the repository
+    if ! git clone --quiet --branch "$latest_tag" --depth 1 "$repo_url" "$temp_dir/repo" 2>/dev/null; then
+        # Try without branch (just clone and checkout tag)
+        git clone --quiet --depth 1 "$repo_url" "$temp_dir/repo" 2>/dev/null || return 1
+        (cd "$temp_dir/repo" && git checkout --quiet "$latest_tag" 2>/dev/null || return 1)
+    fi
+    
+    if [ ! -f "$temp_dir/repo/dotc" ]; then
+        log_error "dotc script not found in repository"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # Backup current version
+    local backup_path="${dotc_path}.backup.$(date +%Y%m%d%H%M%S)"
+    cp "$dotc_path" "$backup_path"
+    log_info "Backed up current version to ${backup_path}"
+    
+    # Install new version
+    if [ -w "$(dirname "$dotc_path")" ]; then
+        cp "$temp_dir/repo/dotc" "$dotc_path"
+        chmod +x "$dotc_path"
+    else
+        sudo cp "$temp_dir/repo/dotc" "$dotc_path"
+        sudo chmod +x "$dotc_path"
+    fi
+    
+    rm -rf "$temp_dir"
+    log_info "dotc updated successfully to version ${latest_tag}"
+    return 0
+}
+
+# Update command repositories
+update_command_repos() {
+    local git_dir="${DC_WORKSPACE_DIR}/git"
+    
+    if [ ! -d "$git_dir" ]; then
+        log_info "No command repositories found at ${git_dir}"
+        return 0
+    fi
+    
+    local repos=()
+    # Find all .git directories and extract their parent directories
+    while IFS= read -r repo; do
+        if [ -n "$repo" ] && [ -d "$repo/.git" ]; then
+            repos+=("$repo")
+        fi
+    done < <(find "$git_dir" -type d -name ".git" 2>/dev/null | sed 's|/.git$||' | sort)
+    
+    if [ ${#repos[@]} -eq 0 ]; then
+        log_info "No git repositories found in ${git_dir}"
+        return 0
+    fi
+    
+    echo ""
+    echo "Found ${#repos[@]} command repository(ies):"
+    for repo in "${repos[@]}"; do
+        echo "  - $repo"
+    done
+    echo ""
+    
+    read -p "Would you like to update these repositories? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "Skipping repository updates"
+        return 0
+    fi
+    
+    for repo in "${repos[@]}"; do
+        log_info "Updating repository: $repo"
+        (cd "$repo" && git pull --quiet 2>/dev/null || log_warn "Failed to update $repo")
+    done
+    
+    log_info "Repository updates complete"
+}
+
+# Handle update workflow
+handle_update() {
+    log_info "Checking for updates..."
+    
+    # Check for dotc updates
+    local latest_tag
+    if latest_tag=$(check_dotc_updates); then
+        echo ""
+        echo "A new version of dotc is available: ${latest_tag}"
+        echo "Current version: ${__version__}"
+        read -p "Would you like to update dotc? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            if update_dotc "$latest_tag"; then
+                log_info "dotc updated successfully. Please restart your terminal."
+            else
+                log_error "Failed to update dotc"
+            fi
+        fi
+    else
+        log_info "dotc is up to date (version ${__version__})"
+    fi
+    
+    # Check for command repository updates
+    update_command_repos
+}
+
 # Execute subcommand
 execute_subcommand() {
     local subcommand="$1"
@@ -685,7 +892,9 @@ main() {
     local init_flag=false
     local scan_dir=""
     local help_flag=false
+    local version_flag=false
     local completion_flag=false
+    local update_flag=false
     local subcommand=""
     local original_args=("$@")
     local args_array=("$@")
@@ -709,8 +918,14 @@ main() {
             ---help)
                 help_flag=true
                 ;;
+            ---version)
+                version_flag=true
+                ;;
             ---completion)
                 completion_flag=true
+                ;;
+            ---update)
+                update_flag=true
                 ;;
             *)
                 # This should be the subcommand (first non-flag argument)
@@ -725,6 +940,16 @@ main() {
     # Handle flags
     if [ "$help_flag" = true ]; then
         show_help
+        exit 0
+    fi
+    
+    if [ "$version_flag" = true ]; then
+        show_version
+        exit 0
+    fi
+    
+    if [ "$update_flag" = true ]; then
+        handle_update
         exit 0
     fi
     
@@ -765,7 +990,7 @@ main() {
             
             # Skip flags
             case "$arg" in
-                ---init|---help|---completion)
+                ---init|---help|---version|---completion|---update)
                     continue
                     ;;
                 ---scan)
