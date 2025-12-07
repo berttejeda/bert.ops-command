@@ -35,10 +35,30 @@ update_profile() {
 }
 
 # Default values
-BRANCH=${1:-master}
+# Default to 'main' branch (modern standard), fallback to 'master' if needed
 INSTALL_DIR=${2:-/usr/local/bin}
 SRC_REPO=${SRC_REPO:-https://github.com/berttejeda/bert.dot-commander.git}
 TEMP_DIR=$(mktemp -d)
+
+# If branch is explicitly provided, use it
+# Otherwise, try 'main' first, then fallback to 'master'
+if [ -n "${1:-}" ]; then
+	BRANCH="$1"
+else
+	# Try to detect which branch exists
+	echo "Detecting default branch..."
+	if git ls-remote --heads --exit-code "$SRC_REPO" main &> /dev/null; then
+		BRANCH="main"
+		echo "Using 'main' branch"
+	elif git ls-remote --heads --exit-code "$SRC_REPO" master &> /dev/null; then
+		BRANCH="master"
+		echo "Using 'master' branch (fallback)"
+	else
+		# Default to main if we can't detect
+		BRANCH="main"
+		echo "Defaulting to 'main' branch"
+	fi
+fi
 
 # Cleanup function
 cleanup() {
@@ -81,9 +101,23 @@ if [[ -n "$GIT_ROOT" && "$(basename "$GIT_ROOT")" == "bert.dot-commander" ]]; th
 	REPO_DIR="$GIT_ROOT"
 else
 	# Clone the repository
-	echo "Cloning from $SRC_REPO"
-	git clone --quiet --branch "$BRANCH" "$SRC_REPO" "$TEMP_DIR/repo" 2> /dev/null ||
-		display_error "Failed to clone from $SRC_REPO"
+	echo "Cloning from $SRC_REPO (branch: $BRANCH)"
+	if ! git clone --quiet --branch "$BRANCH" "$SRC_REPO" "$TEMP_DIR/repo" 2> /dev/null; then
+		# If the specified branch doesn't exist, try the other common branch
+		if [ "$BRANCH" = "main" ]; then
+			echo "Branch 'main' not found, trying 'master'..."
+			BRANCH="master"
+			git clone --quiet --branch "$BRANCH" "$SRC_REPO" "$TEMP_DIR/repo" 2> /dev/null ||
+				display_error "Failed to clone from $SRC_REPO (tried branches: main, master)"
+		elif [ "$BRANCH" = "master" ]; then
+			echo "Branch 'master' not found, trying 'main'..."
+			BRANCH="main"
+			git clone --quiet --branch "$BRANCH" "$SRC_REPO" "$TEMP_DIR/repo" 2> /dev/null ||
+				display_error "Failed to clone from $SRC_REPO (tried branches: master, main)"
+		else
+			display_error "Failed to clone branch '$BRANCH' from $SRC_REPO"
+		fi
+	fi
 	REPO_DIR="$TEMP_DIR/repo"
 fi
 
