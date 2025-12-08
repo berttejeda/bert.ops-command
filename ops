@@ -6,13 +6,17 @@
 set -euo pipefail
 
 # Version
-__version__="0.3.1"
+__version__="0.3.2"
 
 # Configuration
 OPSC_WORKSPACE_DIR="${OPSC_WORKSPACE_DIR:-${HOME}/ops-command}"
 OPSC_BIN_DIR="${OPSC_WORKSPACE_DIR}/bin"
 OPSC_COMMAND_INDEX="${OPSC_BIN_DIR}/commands.yaml"
 OPSC_SHELL_INIT_FILES=("${HOME}/.bashrc" "${HOME}/.zshrc")
+# Default exclude directories for scanning (can be overridden via environment variable)
+if [ -z "${OPSC_EXCLUDE_DIRS+set}" ]; then
+    OPSC_EXCLUDE_DIRS=("*/node_modules/*" "*/.git/*" "*/venv/*" "*/lib/*" "*/dist/*")
+fi
 
 # Colors for output (optional, can be removed if not needed)
 RED='\033[0;31m'
@@ -467,10 +471,15 @@ scan_and_create_wrappers() {
         file_count=$((file_count + 1))
         log_info "Created wrapper: ${wrapper_name} -> ${file}"
         
-    done < <(find "$scan_dir" -type f \
-        -not -path "*/node_modules/*" \
-        -not -path "*/.git/*" \
-        -print0)
+    done < <(
+        # Build find command with configurable exclude directories
+        local find_args=("$scan_dir" -type f)
+        for exclude_pattern in "${OPSC_EXCLUDE_DIRS[@]}"; do
+            find_args+=(-not -path "$exclude_pattern")
+        done
+        find_args+=(-print0)
+        find "${find_args[@]}"
+    )
     
     # Move temp index to final location
     mv "$temp_index" "$OPSC_COMMAND_INDEX"
