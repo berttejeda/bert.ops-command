@@ -9,10 +9,10 @@ set -euo pipefail
 __version__="0.2.1"
 
 # Configuration
-DC_WORKSPACE_DIR="${DC_WORKSPACE_DIR:-${HOME}/ops-command}"
-DC_BIN_DIR="${DC_WORKSPACE_DIR}/bin"
-DC_COMMAND_INDEX="${DC_BIN_DIR}/commands.yaml"
-DC_SHELL_INIT_FILES=("${HOME}/.bashrc" "${HOME}/.zshrc")
+OPSC_WORKSPACE_DIR="${OPSC_WORKSPACE_DIR:-${HOME}/ops-command}"
+OPSC_BIN_DIR="${OPSC_WORKSPACE_DIR}/bin"
+OPSC_COMMAND_INDEX="${OPSC_BIN_DIR}/commands.yaml"
+OPSC_SHELL_INIT_FILES=("${HOME}/.bashrc" "${HOME}/.zshrc")
 
 # Colors for output (optional, can be removed if not needed)
 RED='\033[0;31m'
@@ -40,7 +40,7 @@ log_warn() {
 check_yq() {
     if ! command -v yq &> /dev/null; then
         log_error "yq is required but not installed. Please install yq first."
-        exit 1
+        exit 2
     fi
 }
 
@@ -56,8 +56,7 @@ determine_namespace() {
         # Suppress check_yq output - it will exit if yq is not found
         if ! command -v yq &> /dev/null; then
             log_error "yq is required but not installed. Please install yq first." >&2
-            echo ""
-            return 1
+            exit 2
         fi
         namespace=$(yq eval '.namespace // ""' "$config_file" 2>/dev/null || echo "")
         if [ -n "$namespace" ]; then
@@ -181,11 +180,11 @@ should_skip_file() {
 create_wrapper_script() {
     local source_file="$1"
     local wrapper_name="$2"
-    local wrapper_path="${DC_BIN_DIR}/${wrapper_name}.sh"
+    local wrapper_path="${OPSC_BIN_DIR}/${wrapper_name}.sh"
     local shell_type=$(get_shell_type)
     
     # Create bin directory if it doesn't exist
-    mkdir -p "${DC_BIN_DIR}"
+    mkdir -p "${OPSC_BIN_DIR}"
     
     # Determine shebang based on shell type
     local shebang="#!/usr/bin/env ${shell_type}"
@@ -237,11 +236,11 @@ EOF
 add_init_block() {
     local init_block="# >>> ops-command initialize >>>
 # !! Contents within this block are managed by 'ops' !!
-DC_WORKSPACE_DIR=\${DC_WORKSPACE_DIR-\${HOME}/ops-command}
-export PATH=\"\${DC_WORKSPACE_DIR}/bin:\$PATH\"
+OPSC_WORKSPACE_DIR=\${OPSC_WORKSPACE_DIR-\${HOME}/ops-command}
+export PATH=\"\${OPSC_WORKSPACE_DIR}/bin:\$PATH\"
 # <<< ops-command <<<"
 
-    for init_file in "${DC_SHELL_INIT_FILES[@]}"; do
+    for init_file in "${OPSC_SHELL_INIT_FILES[@]}"; do
         if [ ! -f "$init_file" ]; then
             # Create the file if it doesn't exist
             touch "$init_file"
@@ -263,7 +262,7 @@ export PATH=\"\${DC_WORKSPACE_DIR}/bin:\$PATH\"
 update_aliases_block() {
     local alias_entries=("$@")
     
-    for init_file in "${DC_SHELL_INIT_FILES[@]}"; do
+    for init_file in "${OPSC_SHELL_INIT_FILES[@]}"; do
         if [ ! -f "$init_file" ]; then
             touch "$init_file"
         fi
@@ -333,7 +332,7 @@ clone_git_repo() {
     fi
     
     # Create owner directory if it doesn't exist
-    local owner_dir="${DC_WORKSPACE_DIR}/git/${owner}"
+    local owner_dir="${OPSC_WORKSPACE_DIR}/git/${owner}"
     mkdir -p "$owner_dir"
     
     # Clone repository
@@ -373,11 +372,11 @@ scan_and_create_wrappers() {
     log_info "Scanning directory: ${scan_dir}"
     
     # Determine namespace from the cloned/scan directory
-    local DC_NAMESPACE
-    DC_NAMESPACE=$(determine_namespace "$scan_dir")
+    local OPSC_NAMESPACE
+    OPSC_NAMESPACE=$(determine_namespace "$scan_dir")
     
     # Create bin directory
-    mkdir -p "${DC_BIN_DIR}"
+    mkdir -p "${OPSC_BIN_DIR}"
     
     # Initialize command index
     local temp_index=$(mktemp)
@@ -430,8 +429,8 @@ scan_and_create_wrappers() {
         local wrapper_name=""
         
         # Add namespace if present
-        if [ -n "$DC_NAMESPACE" ]; then
-            wrapper_name="$DC_NAMESPACE"
+        if [ -n "$OPSC_NAMESPACE" ]; then
+            wrapper_name="$OPSC_NAMESPACE"
         fi
         
         # Add path components
@@ -458,7 +457,12 @@ scan_and_create_wrappers() {
         echo "    path: \"${file}\"" >> "$temp_index"
         
         # Add to aliases
-        alias_entries+=("alias ops.${wrapper_name}=\"${DC_BIN_DIR}/${wrapper_name}.sh\"")
+        if [[ -n $OPSC_ALIAS_PREFIX ]];then 
+          alias_entries+=("alias ${OPSC_ALIAS_PREFIX}.${wrapper_name}=\"${OPSC_BIN_DIR}/${wrapper_name}.sh\"")
+        else
+          alias_entries+=("alias ${wrapper_name}=\"${OPSC_BIN_DIR}/${wrapper_name}.sh\"")
+        fi
+
         
         file_count=$((file_count + 1))
         log_info "Created wrapper: ${wrapper_name} -> ${file}"
@@ -469,10 +473,10 @@ scan_and_create_wrappers() {
         -print0)
     
     # Move temp index to final location
-    mv "$temp_index" "$DC_COMMAND_INDEX"
+    mv "$temp_index" "$OPSC_COMMAND_INDEX"
     
     log_info "Scanned ${file_count} files and created wrappers"
-    log_info "Command index created at: ${DC_COMMAND_INDEX}"
+    log_info "Command index created at: ${OPSC_COMMAND_INDEX}"
     
     # Update aliases
     if [ ${#alias_entries[@]} -gt 0 ]; then
@@ -485,8 +489,8 @@ init_dot_commander() {
     log_info "Initializing ops-command..."
     
     # Create workspace directory
-    mkdir -p "${DC_WORKSPACE_DIR}"
-    mkdir -p "${DC_BIN_DIR}"
+    mkdir -p "${OPSC_WORKSPACE_DIR}"
+    mkdir -p "${OPSC_BIN_DIR}"
     
     # Add initialization block to shell init files
     add_init_block
@@ -497,7 +501,7 @@ init_dot_commander() {
 
 # Get available commands (for completion)
 get_available_commands() {
-    if [ ! -f "$DC_COMMAND_INDEX" ]; then
+    if [ ! -f "$OPSC_COMMAND_INDEX" ]; then
         return 0
     fi
     
@@ -505,7 +509,7 @@ get_available_commands() {
     
     # Parse YAML and extract command names
     local commands
-    commands=$(yq eval '.commands[].name' "$DC_COMMAND_INDEX" 2>/dev/null || echo "")
+    commands=$(yq eval '.commands[].name' "$OPSC_COMMAND_INDEX" 2>/dev/null || echo "")
     
     # Filter out log messages and output commands
     while IFS= read -r cmd; do
@@ -706,7 +710,7 @@ show_help() {
     echo "  ops <sub_command>: Execute a sub-command"
     echo ""
     
-    if [ ! -f "$DC_COMMAND_INDEX" ]; then
+    if [ ! -f "$OPSC_COMMAND_INDEX" ]; then
         echo "No command index found. Run 'ops ---scan <dir>' to create one."
         return 0
     fi
@@ -803,7 +807,7 @@ update_ops() {
 
 # Update command repositories
 update_command_repos() {
-    local git_dir="${DC_WORKSPACE_DIR}/git"
+    local git_dir="${OPSC_WORKSPACE_DIR}/git"
     
     if [ ! -d "$git_dir" ]; then
         log_info "No command repositories found at ${git_dir}"
@@ -887,7 +891,7 @@ execute_subcommand() {
     local subcommand="$1"
     shift  # Remove subcommand from arguments
     
-    local wrapper_script="${DC_BIN_DIR}/${subcommand}.sh"
+    local wrapper_script="${OPSC_BIN_DIR}/${subcommand}.sh"
     
     if [ ! -f "$wrapper_script" ]; then
         log_error "Subcommand not found: ${subcommand}"
