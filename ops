@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Version
-__version__="0.4.0"
+__version__="0.4.1"
 
 # Configuration
 OPSC_WORKSPACE_DIR="${OPSC_WORKSPACE_DIR:-${HOME}/ops-command}"
@@ -318,29 +318,37 @@ is_git_url() {
 # Clone git repository if URL is provided
 clone_git_repo() {
     local git_url="$1"
+    local server=""
     local owner=""
     local repo=""
     local repo_path=""
     
-    # Parse git URL to extract owner and repo
-    if [[ "$git_url" =~ ^https://github.com/([^/]+)/([^/]+)\.git$ ]]; then
-        owner="${BASH_REMATCH[1]}"
-        repo="${BASH_REMATCH[2]}"
-    elif [[ "$git_url" =~ ^git@github.com:([^/]+)/([^/]+)\.git$ ]]; then
-        owner="${BASH_REMATCH[1]}"
-        repo="${BASH_REMATCH[2]}"
+    # Parse git URL to extract server, owner, and repo
+    # Support HTTPS format: https://server.com/owner/repo.git
+    if [[ "$git_url" =~ ^https://([^/]+)/([^/]+)/([^/]+)\.git$ ]]; then
+        server="${BASH_REMATCH[1]}"
+        owner="${BASH_REMATCH[2]}"
+        repo="${BASH_REMATCH[3]}"
+    # Support SSH format: git@server.com:owner/repo.git
+    elif [[ "$git_url" =~ ^git@([^:]+):([^/]+)/([^/]+)\.git$ ]]; then
+        server="${BASH_REMATCH[1]}"
+        owner="${BASH_REMATCH[2]}"
+        repo="${BASH_REMATCH[3]}"
     else
         log_error "Unsupported git URL format: ${git_url}"
-        log_error "Supported formats: https://github.com/owner/repo.git or git@github.com:owner/repo.git"
+        log_error "Supported formats:"
+        log_error "  - https://server.com/owner/repo.git"
+        log_error "  - git@server.com:owner/repo.git"
         exit 1
     fi
     
-    # Create owner directory if it doesn't exist
-    local owner_dir="${OPSC_WORKSPACE_DIR}/git/${owner}"
-    mkdir -p "$owner_dir"
+    # Create server/owner directory structure if it doesn't exist
+    # Organize by server to avoid conflicts between different git servers
+    local repo_dir="${OPSC_WORKSPACE_DIR}/git/${server}/${owner}"
+    mkdir -p "$repo_dir"
     
     # Clone repository
-    repo_path="${owner_dir}/${repo}"
+    repo_path="${repo_dir}/${repo}"
     
     if [ -d "$repo_path" ]; then
         log_info "Repository already exists at ${repo_path}, skipping clone"
