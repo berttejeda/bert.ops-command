@@ -744,6 +744,18 @@ show_help() {
     done <<< "$commands"
 }
 
+# Confirm user action
+confirm() {
+    local prompt="$1"
+    read -p "$prompt" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Check for updates to ops
 check_ops_updates() {
     local current_version="$__version__"
@@ -797,8 +809,19 @@ update_ops() {
     
     # Backup current version
     local backup_path="${ops_path}.backup.$(date +%Y%m%d%H%M%S)"
-    cp "$ops_path" "$backup_path"
-    log_info "Backed up current version to ${backup_path}"
+    if sudo -n true 2>/dev/null; then
+        echo "Attempting to create a backup via sudo"
+        sudo cp "$ops_path" "$backup_path"
+        log_info "Backed up current version to ${backup_path}"
+    else
+        echo "User may have sudo privileges but requires a password, or no sudo privileges."
+        if confirm "Do you want to proceed with updating the ops command without a backup? [y/N] "; then
+            log_info "Skipping backup"
+        else
+            log_error "Exiting without updating ops"
+            return 1
+        fi
+    fi    
     
     # Install new version
     if [ -w "$(dirname "$ops_path")" ]; then
@@ -878,9 +901,7 @@ handle_update() {
         echo ""
         echo "A new version of ops is available: ${latest_tag}"
         echo "Current version: ${__version__}"
-        read -p "Would you like to update ops? [y/N] " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if confirm "Would you like to update ops? [y/N] "; then
             if update_ops "$latest_tag"; then
                 log_info "ops updated successfully. Please restart your terminal."
             else
