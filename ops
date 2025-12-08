@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Version
-__version__="0.3.3"
+__version__="0.4.0"
 
 # Configuration
 OPSC_WORKSPACE_DIR="${OPSC_WORKSPACE_DIR:-${HOME}/ops-command}"
@@ -539,7 +539,7 @@ _ops_completion() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     
     # Main options
-    opts="---init ---scan ---help ---version ---completion ---update"
+    opts="---init ---scan ---help ---version ---completion ---update ---update-command-repos"
     
     # If we're completing the first argument and it starts with ---, complete options
     if [[ ${cur} == ---* ]]; then
@@ -586,6 +586,7 @@ _ops() {
         '---version:Show version information'
         '---completion:Generate completion scripts'
         '---update:Check for updates and update ops and command repos'
+        '---update-command-repos:Update local command repositories'
     )
     
     # Get available commands from command index
@@ -716,6 +717,7 @@ show_help() {
     echo "  ops ---version: Show version information"
     echo "  ops ---completion: Generate and install shell completion scripts"
     echo "  ops ---update: Check for updates and update ops and command repos"
+    echo "  ops ---update-command-repos: Update local command repositories"
     echo "  ops <sub_command>: Execute a sub-command"
     echo ""
     
@@ -869,9 +871,7 @@ update_command_repos() {
     echo "This will run 'git clean -f . && git checkout .' before pulling updates."
     echo ""
     
-    read -p "Would you like to update these repositories? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    if ! confirm "Would you like to update these repositories? [y/N] "; then
         log_info "Skipping repository updates"
         return 0
     fi
@@ -941,6 +941,7 @@ main() {
     local version_flag=false
     local completion_flag=false
     local update_flag=false
+    local update_command_repos_flag=false
     local subcommand=""
     local original_args=("$@")
     local args_array=("$@")
@@ -973,6 +974,9 @@ main() {
             ---update)
                 update_flag=true
                 ;;
+            ---update-command-repos)
+                update_command_repos_flag=true
+                ;;
             *)
                 # This should be the subcommand (first non-flag argument)
                 if [ -z "$subcommand" ] && [[ ! "$arg" =~ ^--- ]]; then
@@ -1001,6 +1005,11 @@ main() {
     
     if [ "$completion_flag" = true ]; then
         install_completion
+        exit 0
+    fi
+    
+    if [ "$update_command_repos_flag" = true ]; then
+        update_command_repos
         exit 0
     fi
     
@@ -1036,7 +1045,7 @@ main() {
             
             # Skip flags
             case "$arg" in
-                ---init|---help|---version|---completion|---update)
+                ---init|---help|---version|---completion|---update|---update-command-repos)
                     continue
                     ;;
                 ---scan)
