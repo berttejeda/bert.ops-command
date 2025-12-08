@@ -37,7 +37,7 @@ update_profile() {
 # Default values
 # Default to 'main' branch (modern standard), fallback to 'master' if needed
 INSTALL_DIR=${2:-/usr/local/bin}
-SRC_REPO=${SRC_REPO:-https://github.com/berttejeda/bert.dot-commander.git}
+SRC_REPO=${SRC_REPO:-https://github.com/berttejeda/bert.ops-command.git}
 TEMP_DIR=$(mktemp -d)
 
 # If branch is explicitly provided, use it
@@ -72,7 +72,7 @@ if command -v ops &> /dev/null; then
 
 To reinstall, first remove the existing installation:
   rm $(which ops)
-  rm -rf ~/dot-commander"
+  rm -rf ~/ops-command"
 fi
 
 # Check for required tools
@@ -95,7 +95,7 @@ fi
 # Check if we're running from a git repository
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 
-if [[ -n "$GIT_ROOT" && "$(basename "$GIT_ROOT")" == "bert.dot-commander" ]]; then
+if [[ -n "$GIT_ROOT" && "$(basename "$GIT_ROOT")" == "bert.ops-command" ]]; then
 	# We're in the ops repository, use local files
 	echo "Using local repository at $GIT_ROOT"
 	REPO_DIR="$GIT_ROOT"

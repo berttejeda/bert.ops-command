@@ -9,7 +9,7 @@ set -euo pipefail
 __version__="0.2.1"
 
 # Configuration
-DC_WORKSPACE_DIR="${DC_WORKSPACE_DIR:-${HOME}/dot-commander}"
+DC_WORKSPACE_DIR="${DC_WORKSPACE_DIR:-${HOME}/ops-command}"
 DC_BIN_DIR="${DC_WORKSPACE_DIR}/bin"
 DC_COMMAND_INDEX="${DC_BIN_DIR}/commands.yaml"
 DC_SHELL_INIT_FILES=("${HOME}/.bashrc" "${HOME}/.zshrc")
@@ -50,8 +50,8 @@ determine_namespace() {
     local namespace=""
     local quiet="${2:-false}"  # Optional quiet mode parameter
     
-    # Check for .dot-commander.yaml file
-    local config_file="${scan_dir}/.dot-commander.yaml"
+    # Check for .ops-command.yaml file
+    local config_file="${scan_dir}/.ops-command.yaml"
     if [ -f "$config_file" ]; then
         # Suppress check_yq output - it will exit if yq is not found
         if ! command -v yq &> /dev/null; then
@@ -62,7 +62,7 @@ determine_namespace() {
         namespace=$(yq eval '.namespace // ""' "$config_file" 2>/dev/null || echo "")
         if [ -n "$namespace" ]; then
             if [ "$quiet" != "true" ]; then
-                log_info "Found namespace in .dot-commander.yaml: ${namespace}" >&2
+                log_info "Found namespace in .ops-command.yaml: ${namespace}" >&2
             fi
             # Only output the namespace value to stdout
             echo "$namespace"
@@ -235,11 +235,11 @@ EOF
 
 # Add initialization block to shell init files
 add_init_block() {
-    local init_block="# >>> dot-commander initialize >>>
+    local init_block="# >>> ops-command initialize >>>
 # !! Contents within this block are managed by 'ops' !!
-DC_WORKSPACE_DIR=\${DC_WORKSPACE_DIR-\${HOME}/dot-commander}
+DC_WORKSPACE_DIR=\${DC_WORKSPACE_DIR-\${HOME}/ops-command}
 export PATH=\"\${DC_WORKSPACE_DIR}/bin:\$PATH\"
-# <<< dot-commander <<<"
+# <<< ops-command <<<"
 
     for init_file in "${DC_SHELL_INIT_FILES[@]}"; do
         if [ ! -f "$init_file" ]; then
@@ -248,7 +248,7 @@ export PATH=\"\${DC_WORKSPACE_DIR}/bin:\$PATH\"
         fi
         
         # Check if block already exists
-        if ! grep -q "# >>> dot-commander initialize >>>" "$init_file" 2>/dev/null; then
+        if ! grep -q "# >>> ops-command initialize >>>" "$init_file" 2>/dev/null; then
             # Append the block
             echo "" >> "$init_file"
             echo "$init_block" >> "$init_file"
@@ -269,17 +269,17 @@ update_aliases_block() {
         fi
         
         # Remove existing aliases block if it exists
-        if grep -q "# >>> dot-commander aliases >>>" "$init_file" 2>/dev/null; then
+        if grep -q "# >>> ops-command aliases >>>" "$init_file" 2>/dev/null; then
             # Extract everything before and after the aliases block
             local temp_file=$(mktemp)
             local in_block=false
             
             while IFS= read -r line; do
-                if [[ "$line" == "# >>> dot-commander aliases >>>" ]]; then
+                if [[ "$line" == "# >>> ops-command aliases >>>" ]]; then
                     in_block=true
                     continue
                 fi
-                if [[ "$line" == "# <<< dot-commander aliases <<<" ]]; then
+                if [[ "$line" == "# <<< ops-command aliases <<<" ]]; then
                     in_block=false
                     continue
                 fi
@@ -294,12 +294,12 @@ update_aliases_block() {
         # Add new aliases block
         {
             echo ""
-            echo "# >>> dot-commander aliases >>>"
+            echo "# >>> ops-command aliases >>>"
             echo "# !! Contents within this block are managed by 'ops' !!"
             for alias_entry in "${alias_entries[@]}"; do
                 echo "$alias_entry"
             done
-            echo "# <<< dot-commander aliases <<<"
+            echo "# <<< ops-command aliases <<<"
         } >> "$init_file"
         
         log_info "Updated aliases block in ${init_file}"
@@ -480,9 +480,9 @@ scan_and_create_wrappers() {
     fi
 }
 
-# Initialize dot-commander
+# Initialize ops-command
 init_dot_commander() {
-    log_info "Initializing dot-commander..."
+    log_info "Initializing ops-command..."
     
     # Create workspace directory
     mkdir -p "${DC_WORKSPACE_DIR}"
@@ -491,7 +491,7 @@ init_dot_commander() {
     # Add initialization block to shell init files
     add_init_block
     
-    log_info "dot-commander initialized"
+    log_info "ops-command initialized"
     log_info "Run \`ops ---help\` for usage information"
 }
 
@@ -541,7 +541,7 @@ _ops_completion() {
     fi
     
     # Otherwise, complete with available commands from command index
-    local command_index="${HOME}/dot-commander/bin/commands.yaml"
+    local command_index="${HOME}/ops-command/bin/commands.yaml"
     local commands=""
     
     if [ -f "$command_index" ] && command -v yq &> /dev/null; then
@@ -576,9 +576,9 @@ _ops() {
     )
     
     # Get available commands from command index
-    if [ -f "${HOME}/dot-commander/bin/commands.yaml" ]; then
+    if [ -f "${HOME}/ops-command/bin/commands.yaml" ]; then
         if command -v yq &> /dev/null; then
-            commands=($(yq eval '.commands[].name' "${HOME}/dot-commander/bin/commands.yaml" 2>/dev/null | grep -v "^[0-9]\{12\}[[:space:]]\+INFO:" || echo ""))
+            commands=($(yq eval '.commands[].name' "${HOME}/ops-command/bin/commands.yaml" 2>/dev/null | grep -v "^[0-9]\{12\}[[:space:]]\+INFO:" || echo ""))
         fi
     fi
     
@@ -670,7 +670,7 @@ install_completion() {
             # Add to fpath in .zshrc if not present
             if ! grep -q "fpath.*zsh/completions" "${HOME}/.zshrc" 2>/dev/null; then
                 echo "" >> "${HOME}/.zshrc"
-                echo "# dot-commander completion" >> "${HOME}/.zshrc"
+                echo "# ops-command completion" >> "${HOME}/.zshrc"
                 echo "fpath=(${zsh_completion_dir} \$fpath)" >> "${HOME}/.zshrc"
                 echo "autoload -U compinit && compinit" >> "${HOME}/.zshrc"
                 log_info "Added completion to fpath in ~/.zshrc"
@@ -742,9 +742,9 @@ check_ops_updates() {
     fi
     
     # Check if ops was installed via installer (in /usr/local/bin or similar)
-    if [[ "$ops_path" != *"dot-commander"* ]] && [[ "$ops_path" =~ ^/(usr|opt|usr/local)/bin/ ]]; then
+    if [[ "$ops_path" != *"ops-command"* ]] && [[ "$ops_path" =~ ^/(usr|opt|usr/local)/bin/ ]]; then
         # Try to get latest tag from GitHub
-        local repo_url="https://github.com/berttejeda/bert.dot-commander.git"
+        local repo_url="https://github.com/berttejeda/bert.ops-command.git"
         local latest_tag=""
         
         if command -v git &> /dev/null; then
@@ -765,7 +765,7 @@ update_ops() {
     local latest_tag="$1"
     local ops_path=$(which ops)
     local temp_dir=$(mktemp -d)
-    local repo_url="https://github.com/berttejeda/bert.dot-commander.git"
+    local repo_url="https://github.com/berttejeda/bert.ops-command.git"
     
     log_info "Updating ops to version ${latest_tag}"
     

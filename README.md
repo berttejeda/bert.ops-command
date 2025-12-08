@@ -65,8 +65,8 @@ The *ops* tool is a bash/zsh-compatible shell script that:
     the given scripts/executables contained therein
   - Subcommands follow a dot-notation style of reference, e.g.<br />
     _namespace.folder.subfolder.command_<sup> [1](#sub-command-naming-logic)</sup>
-  - Automatic namespace detection from `.dot-commander.yaml` or git repository name
-  - Automatic wrapper script generation in `${HOME}/dot-commander/bin`
+  - Automatic namespace detection from `.ops-command.yaml` or git repository name
+  - Automatic wrapper script generation in `${HOME}/ops-command/bin`
   - Automatic alias generation for shell init files (`~/.bashrc`, `~/.zshrc`)
 
 <a name="installation"></a>
@@ -92,7 +92,7 @@ You'll need:
 The easiest way to install ops is using the one-line installer:
 
 ```bash
-bash < <(curl -s -S -L https://raw.githubusercontent.com/berttejeda/bert.dot-commander/master/binscripts/ops-installer)
+bash < <(curl -s -S -L https://raw.githubusercontent.com/berttejeda/bert.ops-command/master/binscripts/ops-installer)
 ```
 
 This will:
@@ -112,8 +112,8 @@ If you prefer to install manually:
 
 1. **Clone or download the repository**:
    ```bash
-   git clone https://github.com/berttejeda/bert.dot-commander.git
-   cd bert.dot-commander
+   git clone https://github.com/berttejeda/bert.ops-command.git
+   cd bert.ops-command
    ```
 
 2. **Make the script executable**:
@@ -128,7 +128,7 @@ If you prefer to install manually:
    
    # Option 2: Add the directory to your PATH
    # Add this to your ~/.bashrc or ~/.zshrc:
-   export PATH="$PATH:/path/to/bert.dot-commander"
+   export PATH="$PATH:/path/to/bert.ops-command"
    ```
 
 4. **Initialize ops**:
@@ -137,9 +137,9 @@ If you prefer to install manually:
    ```
 
    This will:
-   - Create the dot-commander workspace directory at `${HOME}/dot-commander`
+   - Create the ops-command workspace directory at `${HOME}/ops-command`
    - Add initialization blocks to your `~/.bashrc` and `~/.zshrc`
-   - Set up the PATH to include `${HOME}/dot-commander/bin`
+   - Set up the PATH to include `${HOME}/ops-command/bin`
 
 5. **Reload your shell** or source your init file:
    ```bash
@@ -196,7 +196,7 @@ ops ---scan ~/scripts
 This will:
 - Initialize ops if not already done
 - Scan `~/scripts` recursively for executable files
-- Create wrapper scripts in `${HOME}/dot-commander/bin`
+- Create wrapper scripts in `${HOME}/ops-command/bin`
 - Generate a command index in YAML format
 - Create aliases in your shell init files
 
@@ -248,9 +248,9 @@ ops remote.dev.test
 
 ## Namespace Configuration
 
-**Using `.dot-commander.yaml`:**
+**Using `.ops-command.yaml`:**
 
-Create a `.dot-commander.yaml` file in your scripts directory:
+Create a `.ops-command.yaml` file in your scripts directory:
 
 ```yaml
 namespace: 'myproject'
@@ -296,7 +296,7 @@ As mentioned in the previous sections, commands follow a dot-notation style of r
 
 The naming convention works as follows:
 
-1. **If a namespace is defined** (via `.dot-commander.yaml` or git repository):
+1. **If a namespace is defined** (via `.ops-command.yaml` or git repository):
    - Format: `namespace.folder.subfolder.command`
    - Example: `myproject.git.create-issue-branch`
 
