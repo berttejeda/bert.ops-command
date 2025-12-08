@@ -11,7 +11,7 @@
 - [Usage Examples](#usage-examples)
 - [Installation](#installation)
     - [Prerequisites](#prerequisites)
-    - [dotc](#dotc)
+    - [ops](#ops)
 - [Appendix](#appendix)
     - [Sub-Command Naming Logic](#sub-command-naming-logic)
 
@@ -35,7 +35,7 @@ This brings us to a question:
   for creating their own little scripts to make their lives easier?_<br />
   Hint: It's something messy.
   
-The *dotc* (dot-commander) tool aims to clean up this proclivity for command-line mess in the team setting
+The *ops* tool aims to clean up this proclivity for command-line mess in the team setting
 by unifying disparate pieces of automation into a single entrypoint, thus 
 creating a homogenous command-line experience.
 
@@ -48,7 +48,7 @@ The following sections go over this in detail.
 <a name="design"></a>
 # Design
 
-The *dotc* tool is a bash/zsh-compatible shell script that:
+The *ops* tool is a bash/zsh-compatible shell script that:
 
 - Scans directories recursively for executable files
 - Automatically creates wrapper scripts for discovered executables
@@ -84,20 +84,20 @@ You'll need:
     - Linux: `apt-get install yq` or `yum install yq`
     - Or download from [https://github.com/mikefarah/yq](https://github.com/mikefarah/yq)
 
-<a name="dotc"></a>
-## Installing dotc
+<a name="ops"></a>
+## Installing ops
 
 ### Quick Install (Recommended)
 
-The easiest way to install dotc is using the one-line installer:
+The easiest way to install ops is using the one-line installer:
 
 ```bash
-bash < <(curl -s -S -L https://raw.githubusercontent.com/berttejeda/bert.dot-commander/master/binscripts/dotc-installer)
+bash < <(curl -s -S -L https://raw.githubusercontent.com/berttejeda/bert.dot-commander/master/binscripts/ops-installer)
 ```
 
 This will:
-- Download and install `dotc` to `/usr/local/bin`
-- Automatically initialize dotc
+- Download and install `ops` to `/usr/local/bin`
+- Automatically initialize ops
 - Update your shell profile files (`.bashrc`, `.zshrc`, or `.profile`)
 - Set up the PATH configuration
 
@@ -118,22 +118,22 @@ If you prefer to install manually:
 
 2. **Make the script executable**:
    ```bash
-   chmod +x dotc
+   chmod +x ops
    ```
 
 3. **Add to your PATH** (optional but recommended):
    ```bash
    # Option 1: Symlink to a directory in your PATH
-   sudo ln -s $(pwd)/dotc /usr/local/bin/dotc
+   sudo ln -s $(pwd)/ops /usr/local/bin/ops
    
    # Option 2: Add the directory to your PATH
    # Add this to your ~/.bashrc or ~/.zshrc:
    export PATH="$PATH:/path/to/bert.dot-commander"
    ```
 
-4. **Initialize dotc**:
+4. **Initialize ops**:
    ```bash
-   dotc ---init
+   ops ---init
    ```
 
    This will:
@@ -152,7 +152,7 @@ The next section will cover script organization and usage.
 <a name="script-organization"></a>
 # Script Organization
 
-dotc works by scanning directories for executable files and creating wrapper scripts
+ops works by scanning directories for executable files and creating wrapper scripts
 that can be invoked using dot-notation.
 
 <a name="creating-scripts"></a>
@@ -187,14 +187,14 @@ or any other language that supports shebangs (e.g., `#!/usr/bin/env bash`).
 <a name="scanning-directories"></a>
 ## Scanning Directories
 
-To make your scripts available via dotc, simply scan the directory containing them:
+To make your scripts available via ops, simply scan the directory containing them:
 
 ```bash
-dotc ---scan ~/scripts
+ops ---scan ~/scripts
 ```
 
 This will:
-- Initialize dotc if not already done
+- Initialize ops if not already done
 - Scan `~/scripts` recursively for executable files
 - Create wrapper scripts in `${HOME}/dot-commander/bin`
 - Generate a command index in YAML format
@@ -203,15 +203,15 @@ This will:
 After scanning, you can view available commands:
 
 ```bash
-dotc ---help
+ops ---help
 ```
 
 And execute them using dot-notation:
 
 ```bash
-dotc git.create-issue-branch
-dotc k8s.trigger-rolling-update
-dotc aws.query
+ops git.create-issue-branch
+ops k8s.trigger-rolling-update
+ops aws.query
 ```
 
 [Back to Top](#top)
@@ -220,30 +220,30 @@ dotc aws.query
 
 ## Basic Usage
 
-**Initialize dotc:**
+**Initialize ops:**
 ```bash
-dotc ---init
+ops ---init
 ```
 
 **Scan a directory for scripts:**
 ```bash
-dotc ---scan ~/my-scripts
+ops ---scan ~/my-scripts
 ```
 
 **View available commands:**
 ```bash
-dotc ---help
+ops ---help
 ```
 
 **Execute a command:**
 ```bash
-dotc git.create-issue-branch feature/new-feature
+ops git.create-issue-branch feature/new-feature
 ```
 
 **Execute a nested command:**
 ```bash
 # For a file at ~/scripts/remote/dev/test.sh
-dotc remote.dev.test
+ops remote.dev.test
 ```
 
 ## Namespace Configuration
@@ -258,7 +258,7 @@ namespace: 'myproject'
 
 Then scan the directory:
 ```bash
-dotc ---scan ~/scripts
+ops ---scan ~/scripts
 ```
 
 Commands will be prefixed with the namespace:
@@ -267,12 +267,12 @@ Commands will be prefixed with the namespace:
 
 **Automatic Git Repository Detection:**
 
-If your scripts directory is a git repository, dotc will automatically use
+If your scripts directory is a git repository, ops will automatically use
 the repository name as the namespace:
 
 ```bash
 # If ~/scripts is a git repo named "my-automation"
-dotc ---scan ~/scripts
+ops ---scan ~/scripts
 # Commands will be: my-automation.git.create-issue-branch, etc.
 ```
 
@@ -282,7 +282,7 @@ After scanning, aliases are automatically created in your shell init files.
 You can use them directly:
 
 ```bash
-dotc.git.create-issue-branch feature/new-feature
+ops.git.create-issue-branch feature/new-feature
 ```
 
 [Back to Top](#top)
@@ -315,7 +315,7 @@ The naming convention works as follows:
 
 ### Supported Executable Types
 
-dotc supports any executable file with a shebang, including:
+ops supports any executable file with a shebang, including:
 
 - **Shell scripts**: `#!/usr/bin/env bash`, `#!/usr/bin/env zsh`, `#!/usr/bin/env sh`
 - **Python scripts**: `#!/usr/bin/env python`, `#!/usr/bin/env python3`

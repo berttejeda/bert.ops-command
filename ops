@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# dot-commander (dotc) - Dynamic entrypoint for calling shell executables
+# ops - Dynamic entrypoint for calling shell executables
 # This script manages wrapper scripts for executables organized into subfolders
 
 set -euo pipefail
@@ -236,7 +236,7 @@ EOF
 # Add initialization block to shell init files
 add_init_block() {
     local init_block="# >>> dot-commander initialize >>>
-# !! Contents within this block are managed by 'dot-commander (dotc)' !!
+# !! Contents within this block are managed by 'ops' !!
 DC_WORKSPACE_DIR=\${DC_WORKSPACE_DIR-\${HOME}/dot-commander}
 export PATH=\"\${DC_WORKSPACE_DIR}/bin:\$PATH\"
 # <<< dot-commander <<<"
@@ -295,7 +295,7 @@ update_aliases_block() {
         {
             echo ""
             echo "# >>> dot-commander aliases >>>"
-            echo "# !! Contents within this block are managed by 'dot-commander (dotc)' !!"
+            echo "# !! Contents within this block are managed by 'ops' !!"
             for alias_entry in "${alias_entries[@]}"; do
                 echo "$alias_entry"
             done
@@ -458,7 +458,7 @@ scan_and_create_wrappers() {
         echo "    path: \"${file}\"" >> "$temp_index"
         
         # Add to aliases
-        alias_entries+=("alias dotc.${wrapper_name}=\"${DC_BIN_DIR}/${wrapper_name}.sh\"")
+        alias_entries+=("alias ops.${wrapper_name}=\"${DC_BIN_DIR}/${wrapper_name}.sh\"")
         
         file_count=$((file_count + 1))
         log_info "Created wrapper: ${wrapper_name} -> ${file}"
@@ -492,7 +492,7 @@ init_dot_commander() {
     add_init_block
     
     log_info "dot-commander initialized"
-    log_info "Run \`dotc ---help\` for usage information"
+    log_info "Run \`ops ---help\` for usage information"
 }
 
 # Get available commands (for completion)
@@ -518,15 +518,15 @@ get_available_commands() {
 # Generate bash completion script
 generate_bash_completion() {
     cat <<'EOFBASH'
-# bash completion for dotc
-_dotc_completion() {
+# bash completion for ops
+_ops_completion() {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     
     # Main options
-    opts="---init ---scan ---help ---completion"
+    opts="---init ---scan ---help ---version ---completion ---update"
     
     # If we're completing the first argument and it starts with ---, complete options
     if [[ ${cur} == ---* ]]; then
@@ -553,16 +553,16 @@ _dotc_completion() {
     fi
 }
 
-complete -F _dotc_completion dotc
+complete -F _ops_completion ops
 EOFBASH
 }
 
 # Generate zsh completion script
 generate_zsh_completion() {
     cat <<'EOF'
-#compdef dotc
+#compdef ops
 
-_dotc() {
+_ops() {
     local context state line
     local -a commands flags
     
@@ -570,7 +570,9 @@ _dotc() {
         '---init:Initialize the script'\''s internal config'
         '---scan:Scan target directory for executables'
         '---help:Show help message'
+        '---version:Show version information'
         '---completion:Generate completion scripts'
+        '---update:Check for updates and update ops and command repos'
     )
     
     # Get available commands from command index
@@ -605,7 +607,7 @@ _dotc() {
     esac
 }
 
-_dotc "$@"
+_ops "$@"
 EOF
 }
 
@@ -628,21 +630,21 @@ install_completion() {
         fi
         
         if [ -n "$bash_completion_dir" ]; then
-            generate_bash_completion > "${bash_completion_dir}/dotc"
-            chmod +x "${bash_completion_dir}/dotc"
-            log_info "Bash completion installed to ${bash_completion_dir}/dotc"
+            generate_bash_completion > "${bash_completion_dir}/ops"
+            chmod +x "${bash_completion_dir}/ops"
+            log_info "Bash completion installed to ${bash_completion_dir}/ops"
             completion_installed=true
             
             # Add source line to .bashrc if not present
-            if ! grep -q "source.*bash_completion.d/dotc" "${HOME}/.bashrc" 2>/dev/null; then
+            if ! grep -q "source.*bash_completion.d/ops" "${HOME}/.bashrc" 2>/dev/null; then
                 echo "" >> "${HOME}/.bashrc"
-                echo "# dot-commander completion" >> "${HOME}/.bashrc"
-                echo "[ -f ${bash_completion_dir}/dotc ] && source ${bash_completion_dir}/dotc" >> "${HOME}/.bashrc"
+                echo "# ops completion" >> "${HOME}/.bashrc"
+                echo "[ -f ${bash_completion_dir}/ops ] && source ${bash_completion_dir}/ops" >> "${HOME}/.bashrc"
                 log_info "Added completion source to ~/.bashrc"
             fi
         else
             log_warn "Could not find bash completion directory. Please install manually:"
-            echo "  dotc ---completion > /path/to/completion/dir/dotc"
+            echo "  ops ---completion > /path/to/completion/dir/ops"
         fi
     elif [ "$shell_type" = "zsh" ]; then
         # Try to find zsh completion directory
@@ -660,9 +662,9 @@ install_completion() {
         fi
         
         if [ -n "$zsh_completion_dir" ]; then
-            generate_zsh_completion > "${zsh_completion_dir}/_dotc"
-            chmod +x "${zsh_completion_dir}/_dotc"
-            log_info "Zsh completion installed to ${zsh_completion_dir}/_dotc"
+            generate_zsh_completion > "${zsh_completion_dir}/_ops"
+            chmod +x "${zsh_completion_dir}/_ops"
+            log_info "Zsh completion installed to ${zsh_completion_dir}/_ops"
             completion_installed=true
             
             # Add to fpath in .zshrc if not present
@@ -688,24 +690,24 @@ install_completion() {
 
 # Show version
 show_version() {
-    echo "dotc version $__version__"
+    echo "ops version $__version__"
     exit 0
 }
 
 # Show help message
 show_help() {
     echo "Usage:"
-    echo "  dotc ---init: Initialize the script's internal config"
-    echo "  dotc ---scan <target_dir>: Initialize and scan the target directory for executables"
-    echo "  dotc ---help: Show this help message"
-    echo "  dotc ---version: Show version information"
-    echo "  dotc ---completion: Generate and install shell completion scripts"
-    echo "  dotc ---update: Check for updates and update dotc and command repos"
-    echo "  dotc <sub_command>: Execute a sub-command"
+    echo "  ops ---init: Initialize the script's internal config"
+    echo "  ops ---scan <target_dir>: Initialize and scan the target directory for executables"
+    echo "  ops ---help: Show this help message"
+    echo "  ops ---version: Show version information"
+    echo "  ops ---completion: Generate and install shell completion scripts"
+    echo "  ops ---update: Check for updates and update ops and command repos"
+    echo "  ops <sub_command>: Execute a sub-command"
     echo ""
     
     if [ ! -f "$DC_COMMAND_INDEX" ]; then
-        echo "No command index found. Run 'dotc ---scan <dir>' to create one."
+        echo "No command index found. Run 'ops ---scan <dir>' to create one."
         return 0
     fi
     
@@ -729,18 +731,18 @@ show_help() {
     done <<< "$commands"
 }
 
-# Check for updates to dotc
-check_dotc_updates() {
+# Check for updates to ops
+check_ops_updates() {
     local current_version="$__version__"
-    local dotc_path=$(which dotc 2>/dev/null || echo "")
+    local ops_path=$(which ops 2>/dev/null || echo "")
     
-    if [ -z "$dotc_path" ]; then
-        log_warn "Could not determine dotc installation path"
+    if [ -z "$ops_path" ]; then
+        log_warn "Could not determine ops installation path"
         return 1
     fi
     
-    # Check if dotc was installed via installer (in /usr/local/bin or similar)
-    if [[ "$dotc_path" != *"dot-commander"* ]] && [[ "$dotc_path" =~ ^/(usr|opt|usr/local)/bin/ ]]; then
+    # Check if ops was installed via installer (in /usr/local/bin or similar)
+    if [[ "$ops_path" != *"dot-commander"* ]] && [[ "$ops_path" =~ ^/(usr|opt|usr/local)/bin/ ]]; then
         # Try to get latest tag from GitHub
         local repo_url="https://github.com/berttejeda/bert.dot-commander.git"
         local latest_tag=""
@@ -758,14 +760,14 @@ check_dotc_updates() {
     return 1
 }
 
-# Update dotc to latest version
-update_dotc() {
+# Update ops to latest version
+update_ops() {
     local latest_tag="$1"
-    local dotc_path=$(which dotc)
+    local ops_path=$(which ops)
     local temp_dir=$(mktemp -d)
     local repo_url="https://github.com/berttejeda/bert.dot-commander.git"
     
-    log_info "Updating dotc to version ${latest_tag}"
+    log_info "Updating ops to version ${latest_tag}"
     
     # Clone the repository
     if ! git clone --quiet --branch "$latest_tag" --depth 1 "$repo_url" "$temp_dir/repo" 2>/dev/null; then
@@ -774,28 +776,28 @@ update_dotc() {
         (cd "$temp_dir/repo" && git checkout --quiet "$latest_tag" 2>/dev/null || return 1)
     fi
     
-    if [ ! -f "$temp_dir/repo/dotc" ]; then
-        log_error "dotc script not found in repository"
+    if [ ! -f "$temp_dir/repo/ops" ]; then
+        log_error "ops script not found in repository"
         rm -rf "$temp_dir"
         return 1
     fi
     
     # Backup current version
-    local backup_path="${dotc_path}.backup.$(date +%Y%m%d%H%M%S)"
-    cp "$dotc_path" "$backup_path"
+    local backup_path="${ops_path}.backup.$(date +%Y%m%d%H%M%S)"
+    cp "$ops_path" "$backup_path"
     log_info "Backed up current version to ${backup_path}"
     
     # Install new version
-    if [ -w "$(dirname "$dotc_path")" ]; then
-        cp "$temp_dir/repo/dotc" "$dotc_path"
-        chmod +x "$dotc_path"
+    if [ -w "$(dirname "$ops_path")" ]; then
+        cp "$temp_dir/repo/ops" "$ops_path"
+        chmod +x "$ops_path"
     else
-        sudo cp "$temp_dir/repo/dotc" "$dotc_path"
-        sudo chmod +x "$dotc_path"
+        sudo cp "$temp_dir/repo/ops" "$ops_path"
+        sudo chmod +x "$ops_path"
     fi
     
     rm -rf "$temp_dir"
-    log_info "dotc updated successfully to version ${latest_tag}"
+    log_info "ops updated successfully to version ${latest_tag}"
     return 0
 }
 
@@ -857,23 +859,23 @@ update_command_repos() {
 handle_update() {
     log_info "Checking for updates..."
     
-    # Check for dotc updates
+    # Check for ops updates
     local latest_tag
-    if latest_tag=$(check_dotc_updates); then
+    if latest_tag=$(check_ops_updates); then
         echo ""
-        echo "A new version of dotc is available: ${latest_tag}"
+        echo "A new version of ops is available: ${latest_tag}"
         echo "Current version: ${__version__}"
-        read -p "Would you like to update dotc? [y/N] " -n 1 -r
+        read -p "Would you like to update ops? [y/N] " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            if update_dotc "$latest_tag"; then
-                log_info "dotc updated successfully. Please restart your terminal."
+            if update_ops "$latest_tag"; then
+                log_info "ops updated successfully. Please restart your terminal."
             else
-                log_error "Failed to update dotc"
+                log_error "Failed to update ops"
             fi
         fi
     else
-        log_info "dotc is up to date (version ${__version__})"
+        log_info "ops is up to date (version ${__version__})"
     fi
     
     # Check for command repository updates
@@ -889,7 +891,7 @@ execute_subcommand() {
     
     if [ ! -f "$wrapper_script" ]; then
         log_error "Subcommand not found: ${subcommand}"
-        log_error "Run 'dotc ---help' to see available commands"
+        log_error "Run 'ops ---help' to see available commands"
         exit 1
     fi
     
@@ -1030,7 +1032,7 @@ main() {
     fi
     
     # No valid command provided
-    log_error "No valid command provided. Run 'dotc ---help' for usage information."
+    log_error "No valid command provided. Run 'ops ---help' for usage information."
     exit 1
 }
 

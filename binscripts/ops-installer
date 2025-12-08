@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# dotc (dot-commander) installer
-# This script installs dotc to your system
+# ops installer
+# This script installs ops to your system
 
 set -euo pipefail
 
@@ -27,7 +27,7 @@ update_profile() {
 	grep -F "$source_line" "$1" > /dev/null 2>&1
 	if [ $? -ne 0 ]; then
 		echo "" >> "$1"
-		echo "# dot-commander (dotc)" >> "$1"
+		echo "# ops" >> "$1"
 		echo "$source_line" >> "$1"
 		return 0
 	fi
@@ -66,12 +66,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check if dotc is already installed
-if command -v dotc &> /dev/null; then
-	display_error "dotc is already installed at $(which dotc)
+# Check if ops is already installed
+if command -v ops &> /dev/null; then
+	display_error "ops is already installed at $(which ops)
 
 To reinstall, first remove the existing installation:
-  rm $(which dotc)
+  rm $(which ops)
   rm -rf ~/dot-commander"
 fi
 
@@ -96,7 +96,7 @@ fi
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 
 if [[ -n "$GIT_ROOT" && "$(basename "$GIT_ROOT")" == "bert.dot-commander" ]]; then
-	# We're in the dotc repository, use local files
+	# We're in the ops repository, use local files
 	echo "Using local repository at $GIT_ROOT"
 	REPO_DIR="$GIT_ROOT"
 else
@@ -121,9 +121,9 @@ else
 	REPO_DIR="$TEMP_DIR/repo"
 fi
 
-# Check if dotc script exists
-if [ ! -f "$REPO_DIR/dotc" ]; then
-	display_error "dotc script not found in repository"
+# Check if ops script exists
+if [ ! -f "$REPO_DIR/ops" ]; then
+	display_error "ops script not found in repository"
 fi
 
 # Create install directory if it doesn't exist
@@ -140,33 +140,33 @@ else
 	SUDO_CMD=""
 fi
 
-# Copy dotc script to install directory
-echo "Installing dotc to $INSTALL_DIR"
-$SUDO_CMD cp "$REPO_DIR/dotc" "$INSTALL_DIR/dotc"
-$SUDO_CMD chmod +x "$INSTALL_DIR/dotc"
+# Copy ops script to install directory
+echo "Installing ops to $INSTALL_DIR"
+$SUDO_CMD cp "$REPO_DIR/ops" "$INSTALL_DIR/ops"
+$SUDO_CMD chmod +x "$INSTALL_DIR/ops"
 
 # Verify installation
-if ! command -v dotc &> /dev/null; then
-	# dotc might not be in PATH yet
-	if [ -f "$INSTALL_DIR/dotc" ]; then
-		display_success "dotc installed to $INSTALL_DIR/dotc"
+if ! command -v ops &> /dev/null; then
+	# ops might not be in PATH yet
+	if [ -f "$INSTALL_DIR/ops" ]; then
+		display_success "ops installed to $INSTALL_DIR/ops"
 		echo ""
 		echo "Note: $INSTALL_DIR may not be in your PATH."
-		echo "Add it to your PATH or use: $INSTALL_DIR/dotc"
+		echo "Add it to your PATH or use: $INSTALL_DIR/ops"
 	else
-		display_error "Installation failed - dotc not found in $INSTALL_DIR"
+		display_error "Installation failed - ops not found in $INSTALL_DIR"
 	fi
 else
-	display_success "dotc installed successfully to $(which dotc)"
+	display_success "ops installed successfully to $(which ops)"
 fi
 
-# Initialize dotc
+# Initialize ops
 echo ""
-echo "Initializing dotc..."
-if command -v dotc &> /dev/null; then
-	dotc ---init 2>&1 | grep -v "^[0-9]\{12\} INFO:" || true
+echo "Initializing ops..."
+if command -v ops &> /dev/null; then
+	ops ---init 2>&1 | grep -v "^[0-9]\{12\} INFO:" || true
 else
-	"$INSTALL_DIR/dotc" ---init 2>&1 | grep -v "^[0-9]\{12\} INFO:" || true
+	"$INSTALL_DIR/ops" ---init 2>&1 | grep -v "^[0-9]\{12\} INFO:" || true
 fi
 
 # Set up shell profile updates
@@ -216,7 +216,7 @@ fi
 echo ""
 display_success "Installation complete!"
 echo ""
-echo "dotc has been installed and initialized."
+echo "ops has been installed and initialized."
 echo ""
 
 if [ $PROFILES_UPDATED -eq 0 ]; then
@@ -231,8 +231,8 @@ fi
 
 echo "To get started:"
 echo "  1. Reload your shell: source ~/.bashrc  (or source ~/.zshrc)"
-echo "  2. Scan a directory: dotc ---scan /path/to/scripts"
-echo "  3. View commands: dotc ---help"
-echo "  4. Install completion: dotc ---completion"
+echo "  2. Scan a directory: ops ---scan /path/to/scripts"
+echo "  3. View commands: ops ---help"
+echo "  4. Install completion: ops ---completion"
 echo ""
 
