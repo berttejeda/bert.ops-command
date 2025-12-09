@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Version
-__version__="0.4.3"
+__version__="0.5.0"
 
 # Configuration
 OPSC_WORKSPACE_DIR="${OPSC_WORKSPACE_DIR:-${HOME}/ops-command}"
@@ -238,10 +238,50 @@ EOF
 
 # Add initialization block to shell init files
 add_init_block() {
+    # Find the repository root to locate lib/functions
+    local repo_root=""
+    local ops_script_path=$(which ops 2>/dev/null || echo "")
+    
+    # Try to find repo root from current script location or git
+    if [ -n "$ops_script_path" ] && [ -f "$ops_script_path" ]; then
+        # Check if ops script is in a git repo
+        local script_dir=$(dirname "$ops_script_path")
+        if git -C "$script_dir" rev-parse --git-dir > /dev/null 2>&1; then
+            repo_root=$(git -C "$script_dir" rev-parse --show-toplevel 2>/dev/null || echo "")
+        fi
+    fi
+    
+    # If not found, try current directory
+    if [ -z "$repo_root" ]; then
+        if git rev-parse --git-dir > /dev/null 2>&1; then
+            repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+        fi
+    fi
+    
+    # Build init block with function sources
     local init_block="# >>> ops-command initialize >>>
 # !! Contents within this block are managed by 'ops' !!
 OPSC_WORKSPACE_DIR=\${OPSC_WORKSPACE_DIR-\${HOME}/ops-command}
-export PATH=\"\${OPSC_WORKSPACE_DIR}/bin:\$PATH\"
+export PATH=\"\${OPSC_WORKSPACE_DIR}/bin:\$PATH\""
+    
+    # Add source lines for each .sh file in lib/functions
+    local functions_dir=""
+    if [ -n "$repo_root" ] && [ -d "${repo_root}/lib/functions" ]; then
+        functions_dir="${repo_root}/lib/functions"
+    elif [ -d "${OPSC_WORKSPACE_DIR}/lib/functions" ]; then
+        functions_dir="${OPSC_WORKSPACE_DIR}/lib/functions"
+    fi
+    
+    if [ -n "$functions_dir" ] && [ -d "$functions_dir" ]; then
+        # Find all .sh files and add source lines
+        while IFS= read -r -d '' file; do
+            local filename=$(basename "$file")
+            init_block="${init_block}
+source \"\${OPSC_WORKSPACE_DIR}/lib/functions/${filename}\""
+        done < <(find "$functions_dir" -maxdepth 1 -type f -name "*.sh" -print0 2>/dev/null | sort -z)
+    fi
+    
+    init_block="${init_block}
 # <<< ops-command <<<"
 
     for init_file in "${OPSC_SHELL_INIT_FILES[@]}"; do
@@ -251,13 +291,34 @@ export PATH=\"\${OPSC_WORKSPACE_DIR}/bin:\$PATH\"
         fi
         
         # Check if block already exists
-        if ! grep -q "# >>> ops-command initialize >>>" "$init_file" 2>/dev/null; then
+        if grep -q "# >>> ops-command initialize >>>" "$init_file" 2>/dev/null; then
+            # Replace existing block
+            local temp_file=$(mktemp)
+            local in_block=false
+            
+            while IFS= read -r line || [ -n "$line" ]; do
+                if [[ "$line" == "# >>> ops-command initialize >>>" ]]; then
+                    in_block=true
+                    # Output the new block
+                    echo "$init_block" >> "$temp_file"
+                    continue
+                fi
+                if [[ "$line" == "# <<< ops-command <<<" ]]; then
+                    in_block=false
+                    continue
+                fi
+                if [ "$in_block" = false ]; then
+                    echo "$line" >> "$temp_file"
+                fi
+            done < "$init_file"
+            
+            mv "$temp_file" "$init_file"
+            log_info "Updated initialization block in ${init_file}"
+        else
             # Append the block
             echo "" >> "$init_file"
             echo "$init_block" >> "$init_file"
             log_info "Added initialization block to ${init_file}"
-        else
-            log_info "Initialization block already exists in ${init_file}"
         fi
     done
 }
