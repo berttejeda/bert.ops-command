@@ -885,6 +885,32 @@ show_help() {
     echo "  ops <sub_command>: Execute a sub-command"
     echo ""
     
+    # List local command repositories
+    local git_dir="${OPSC_WORKSPACE_DIR}/git"
+    local repos_found=false
+    
+    if [ -d "$git_dir" ]; then
+        local repos
+        repos=$(find "$git_dir" -type d -name ".git" 2>/dev/null | sed 's|/.git$||' | sort)
+        if [ -n "$repos" ]; then
+            echo "Local command repos:"
+            echo ""
+            while IFS= read -r repo; do
+                if [ -n "$repo" ] && [ -d "$repo" ]; then
+                    echo "  - $repo"
+                    repos_found=true
+                fi
+            done <<< "$repos"
+            echo ""
+        fi
+    fi
+    
+    if [ "$repos_found" = false ]; then
+        echo "Local command repos:"
+        echo "  (no command repos found)"
+        echo ""
+    fi
+    
     if [ ! -f "$OPSC_COMMAND_INDEX" ]; then
         echo "No command index found. Run 'ops ---scan <dir>' to create one."
         return 0
