@@ -36,7 +36,7 @@ update_profile() {
 
 # Default values
 # Default to 'main' branch (modern standard), fallback to 'master' if needed
-INSTALL_DIR=${2:-/usr/local/bin}
+INSTALL_DIR=${2:-"${HOME}/bin"}
 SRC_REPO=${SRC_REPO:-https://github.com/berttejeda/bert.ops-command.git}
 TEMP_DIR=$(mktemp -d)
 
